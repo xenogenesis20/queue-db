@@ -9,8 +9,12 @@ from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
 from models import db, User
+from datastructures import Queue
+from sms import send_msg
 #from models import Person
 
+
+q = Queue()
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DB_CONNECTION_STRING')
@@ -38,6 +42,46 @@ def handle_hello():
     }
 
     return jsonify(response_body), 200
+
+@app.route('/queue', methods=['GET'])
+def get_queue():
+    current_queue = q.get_queue()
+    size_of_queue = q.size()
+    response_body = {
+        "Current Queue": current_queue,
+        "Queue size" : f"there is {size_of_queue} in the queue",
+        "Next in line": f"next person is {current_queue[0]}" if size_of_queue else "Queue is empty" 
+    }
+    
+    return jsonify(response_body), 200
+
+@app.route('/queue', methods=['POST'])
+def enqueue():
+    request_body = request.get_json()
+    q.enqueue(request_body)
+    current_queue = q.get_queue()
+    response_body = {
+        "added": request_body,
+        "Updated Queue": f"Updated queue {current_queue}"
+
+    }
+    
+    return jsonify(response_body), 200
+
+@app.route('/queue', methods=['DELETE'])
+def dequeue():
+    call_person = q.dequeue()
+    current_queue = q.get_queue()
+    send_msg(body=f"Hello {call_person['name'] }")
+    response_body = {
+        "Called in": call_person,
+        "Updated Queue": f"Updated queue {current_queue}",
+    }
+    
+    return jsonify(response_body), 200
+
+
+
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
